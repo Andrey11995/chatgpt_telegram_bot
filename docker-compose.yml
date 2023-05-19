@@ -1,5 +1,8 @@
 version: "3"
 
+volumes:
+  mongo_data:
+
 services:
   mongo:
     container_name: mongo
@@ -8,12 +11,12 @@ services:
     ports:
       - 127.0.0.1:${MONGODB_PORT:-27017}:${MONGODB_PORT:-27017}
     volumes:
-      - ${MONGODB_PATH:-./mongodb}:/data/db
+      - mongo_data:/data/db
     # TODO: add auth
 
   chatgpt_telegram_bot:
     container_name: chatgpt_telegram_bot
-    command: python3 bot/bot.py
+    command: python3 bot.py
     restart: always
     build:
       context: "."
