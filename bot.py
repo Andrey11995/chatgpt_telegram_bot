@@ -32,6 +32,7 @@ from telegram.constants import ParseMode
 from app import settings
 from app.database import Database
 from app.openai_utils import ChatGPT, generate_images, transcribe_audio
+from app.strings import *
 
 # setup
 db = Database()
@@ -40,34 +41,22 @@ logger = logging.getLogger(__name__)
 user_semaphores = {}
 user_tasks = {}
 
-HELP_MESSAGE = """Commands:
-⚪ /retry – Regenerate last app answer
-⚪ /new – Start new dialog
-⚪ /mode – Select chat mode
-⚪ /settings – Show settings
-⚪ /balance – Show balance
-⚪ /help – Show help
-
-🎨 Generate images from text prompts in <b>👩‍🎨 Artist</b> /mode
-👥 Add app to <b>group chat</b>: /help_group_chat
-🎤 You can send <b>Voice Messages</b> instead of text
-"""
-
-HELP_GROUP_CHAT_MESSAGE = """You can add app to any <b>group chat</b> to help and entertain its participants!
-
-Instructions (see <b>video</b> below):
-1. Add the app to the group chat
-2. Make it an <b>admin</b>, so that it can see messages (all other rights can be restricted)
-3. You're awesome!
-
-To get a reply from the app in the chat – @ <b>tag</b> it or <b>reply</b> to its message.
-For example: "{bot_username} write a poem about Telegram"
-"""
-
 
 def split_text_into_chunks(text, chunk_size):
     for i in range(0, len(text), chunk_size):
         yield text[i:i + chunk_size]
+
+
+def set_commands(language='en'):
+    return [
+        BotCommand("/new", COMMANDS["new"][language]),
+        BotCommand("/mode", COMMANDS["mode"][language]),
+        BotCommand("/retry", COMMANDS["retry"][language]),
+        BotCommand("/balance", COMMANDS["balance"][language]),
+        BotCommand("/link", COMMANDS["link"][language]),
+        BotCommand("/settings", COMMANDS["settings"][language]),
+        BotCommand("/help", COMMANDS["help"][language]),
+    ]
 
 
 async def register_user_if_not_exists(update: Update, context: CallbackContext, user: User):
@@ -133,6 +122,10 @@ async def start_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
 
+    language = update.message.from_user.language_code
+    language = language if language == "ru" else "en"
+    await context.bot.set_my_commands(set_commands(language))
+
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
     db.start_new_dialog(user_id)
 
@@ -143,8 +136,8 @@ async def start_handle(update: Update, context: CallbackContext):
         if len(invited_users) >= 3:
             db.set_user_attribute(invite_owner_id, "trial", False)
 
-    reply_text = "Hi! I'm <b>ChatGPT</b> app implemented with OpenAI API 🤖\n\n"
-    reply_text += HELP_MESSAGE
+    reply_text = HELLO[language]
+    reply_text += HELP_MESSAGE[language]
 
     await update.message.reply_text(reply_text, parse_mode=ParseMode.HTML)
     await show_chat_modes_handle(update, context)
@@ -153,16 +146,20 @@ async def start_handle(update: Update, context: CallbackContext):
 async def help_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
+    language = update.message.from_user.language_code
+    language = language if language == "ru" else "en"
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
-    await update.message.reply_text(HELP_MESSAGE, parse_mode=ParseMode.HTML)
+    await update.message.reply_text(HELP_MESSAGE[language], parse_mode=ParseMode.HTML)
 
 
 async def help_group_chat_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
+    language = update.message.from_user.language_code
+    language = language if language == "ru" else "en"
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
-    text = HELP_GROUP_CHAT_MESSAGE.format(bot_username="@" + context.bot.username)
+    text = HELP_GROUP_CHAT_MESSAGE[language].format(bot_username="@" + context.bot.username)
 
     await update.message.reply_text(text, parse_mode=ParseMode.HTML)
     await update.message.reply_video(settings.help_group_chat_video_path)
@@ -174,11 +171,13 @@ async def retry_handle(update: Update, context: CallbackContext):
         return
 
     user_id = update.message.from_user.id
+    language = update.message.from_user.language_code
+    language = language if language == "ru" else "en"
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
     dialog_messages = db.get_dialog_messages(user_id, dialog_id=None)
     if len(dialog_messages) == 0:
-        await update.message.reply_text("No message to retry 🤷‍♂️")
+        await update.message.reply_text(NO_RETRY[language])
         return
 
     last_dialog_message = dialog_messages.pop()
@@ -207,13 +206,15 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
     if await is_previous_message_not_answered_yet(update, context):
         return
     user_id = update.message.from_user.id
+    language = update.message.from_user.language_code
+    language = language if language == "ru" else "en"
     chat_mode = db.get_user_attribute(user_id, "current_chat_mode")
 
     # check trial limit
     trial = db.get_user_attribute(user_id, "trial")
     n_requests = db.get_user_attribute(user_id, "n_requests")
     if trial and n_requests >= settings.free_requests_limit:
-        await update.message.reply_text('Message limit reached')
+        await update.message.reply_text(LIMIT[language])
         return
 
     if chat_mode == "artist":
@@ -225,7 +226,10 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         if use_new_dialog_timeout:
             if (datetime.now() - db.get_user_attribute(user_id, "last_interaction")).seconds > settings.new_dialog_timeout and len(db.get_dialog_messages(user_id)) > 0:
                 db.start_new_dialog(user_id)
-                await update.message.reply_text(f"Starting new dialog due to timeout (<b>{settings.chat_modes[chat_mode]['name']}</b> mode) ✅", parse_mode=ParseMode.HTML)
+                name_key = "name_ru" if language == "ru" else "name"
+                mode = settings.chat_modes[chat_mode][name_key]
+                mode = f"режим <b>{mode}</b>" if language == "ru" else f"<b>{mode}</b> mode"
+                await update.message.reply_text(f"{DIALOG_TIMEOUT[language]} ({mode}) ✅", parse_mode=ParseMode.HTML)
         db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
         # in case of CancelledError
@@ -240,7 +244,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             await update.message.chat.send_action(action="typing")
 
             if _message is None or len(_message) == 0:
-                await update.message.reply_text("🥲 You sent <b>empty message</b>. Please, try again!", parse_mode=ParseMode.HTML)
+                await update.message.reply_text(EMPTY_MESSAGE[language], parse_mode=ParseMode.HTML)
                 return
 
             dialog_messages = db.get_dialog_messages(user_id, dialog_id=None)
@@ -302,7 +306,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
             raise
 
         except Exception as e:
-            error_text = f"Something went wrong during completion. Reason: {e}"
+            error_text = f"{ERROR[language]} {e}"
             logger.error(error_text)
             await update.message.reply_text(error_text)
             return
@@ -310,9 +314,9 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         # send message if some messages were removed from the context
         if n_first_dialog_messages_removed > 0:
             if n_first_dialog_messages_removed == 1:
-                text = "✍️ <i>Note:</i> Your current dialog is too long, so your <b>first message</b> was removed from the context.\n Send /new command to start new dialog"
+                text = TOO_LONG_DIALOG[language]
             else:
-                text = f"✍️ <i>Note:</i> Your current dialog is too long, so <b>{n_first_dialog_messages_removed} first messages</b> were removed from the context.\n Send /new command to start new dialog"
+                text = TOO_LONG_DIALOG_WITH_NUMBER[language].format(number=n_first_dialog_messages_removed)
             await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
     async with user_semaphores[user_id]:
@@ -322,7 +326,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
         try:
             await task
         except asyncio.CancelledError:
-            await update.message.reply_text("✅ Canceled", parse_mode=ParseMode.HTML)
+            await update.message.reply_text(CANCELED[language], parse_mode=ParseMode.HTML)
         else:
             pass
         finally:
@@ -334,9 +338,10 @@ async def is_previous_message_not_answered_yet(update: Update, context: Callback
     await register_user_if_not_exists(update, context, update.message.from_user)
 
     user_id = update.message.from_user.id
+    language = update.message.from_user.language_code
+    language = language if language == "ru" else "en"
     if user_semaphores[user_id].locked():
-        text = "⏳ Please <b>wait</b> for a reply to the previous message\n"
-        text += "Or you can /cancel it"
+        text = PLEASE_WAIT[language]
         await update.message.reply_text(text, reply_to_message_id=update.message.id, parse_mode=ParseMode.HTML)
         return True
     else:
@@ -349,7 +354,8 @@ async def voice_message_handle(update: Update, context: CallbackContext):
         return
 
     await register_user_if_not_exists(update, context, update.message.from_user)
-    if await is_previous_message_not_answered_yet(update, context): return
+    if await is_previous_message_not_answered_yet(update, context):
+        return
 
     user_id = update.message.from_user.id
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
@@ -388,6 +394,8 @@ async def generate_image_handle(update: Update, context: CallbackContext, messag
     if await is_previous_message_not_answered_yet(update, context): return
 
     user_id = update.message.from_user.id
+    language = update.message.from_user.language_code
+    language = language if language == "ru" else "en"
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
     await update.message.chat.send_action(action="upload_photo")
@@ -398,7 +406,7 @@ async def generate_image_handle(update: Update, context: CallbackContext, messag
         image_urls = await generate_images(message, n_images=settings.return_n_generated_images)
     except openai.error.InvalidRequestError as e:
         if str(e).startswith("Your request was rejected as a result of our safety system"):
-            text = "🥲 Your request <b>doesn't comply</b> with OpenAI's usage policies.\nWhat did you write there, huh?"
+            text = GENERATE_IMAGE_ERROR[language]
             await update.message.reply_text(text, parse_mode=ParseMode.HTML)
             return
         else:
@@ -406,6 +414,8 @@ async def generate_image_handle(update: Update, context: CallbackContext, messag
 
     # token usage
     db.set_user_attribute(user_id, "n_generated_images", settings.return_n_generated_images + db.get_user_attribute(user_id, "n_generated_images"))
+    n_requests = db.get_user_attribute(user_id, "n_requests")
+    db.set_user_attribute(user_id, "n_requests", n_requests + 1)
 
     for i, image_url in enumerate(image_urls):
         await update.message.chat.send_action(action="upload_photo")
@@ -417,39 +427,45 @@ async def new_dialog_handle(update: Update, context: CallbackContext):
     if await is_previous_message_not_answered_yet(update, context): return
 
     user_id = update.message.from_user.id
+    language = update.message.from_user.language_code
+    language = language if language == "ru" else "en"
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
     db.start_new_dialog(user_id)
-    await update.message.reply_text("Starting new dialog ✅")
+    await update.message.reply_text(START_NEW_DIALOG[language])
 
     chat_mode = db.get_user_attribute(user_id, "current_chat_mode")
-    await update.message.reply_text(f"{settings.chat_modes[chat_mode]['welcome_message']}", parse_mode=ParseMode.HTML)
+    welcome_message = "welcome_message_ru" if language == "ru" else "welcome_message"
+    await update.message.reply_text(f"{settings.chat_modes[chat_mode][welcome_message]}", parse_mode=ParseMode.HTML)
 
 
 async def cancel_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
 
     user_id = update.message.from_user.id
+    language = update.message.from_user.language_code
+    language = language if language == "ru" else "en"
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
     if user_id in user_tasks:
         task = user_tasks[user_id]
         task.cancel()
     else:
-        await update.message.reply_text("<i>Nothing to cancel...</i>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text(NOTHING_TO_CANCEL[language], parse_mode=ParseMode.HTML)
 
 
-def get_chat_mode_menu(page_index: int):
+def get_chat_mode_menu(page_index: int, language: str):
     n_chat_modes_per_page = settings.n_chat_modes_per_page
-    text = f"Select <b>chat mode</b> ({len(settings.chat_modes)} modes available):"
+    text = SELECT_CHAT_MODE[language].format(number=len(settings.chat_modes))
 
     # buttons
     chat_mode_keys = list(settings.chat_modes.keys())
     page_chat_mode_keys = chat_mode_keys[page_index * n_chat_modes_per_page:(page_index + 1) * n_chat_modes_per_page]
 
+    name_key = "name_ru" if language == "ru" else "name"
     keyboard = []
     for chat_mode_key in page_chat_mode_keys:
-        name = settings.chat_modes[chat_mode_key]["name"]
+        name = settings.chat_modes[chat_mode_key][name_key]
         keyboard.append([InlineKeyboardButton(name, callback_data=f"set_chat_mode|{chat_mode_key}")])
 
     # pagination
@@ -472,7 +488,6 @@ def get_chat_mode_menu(page_index: int):
             ])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
-
     return text, reply_markup
 
 
@@ -481,9 +496,11 @@ async def show_chat_modes_handle(update: Update, context: CallbackContext):
     if await is_previous_message_not_answered_yet(update, context): return
 
     user_id = update.message.from_user.id
+    language = update.message.from_user.language_code
+    language = language if language == "ru" else "en"
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
-    text, reply_markup = get_chat_mode_menu(0)
+    text, reply_markup = get_chat_mode_menu(0, language)
     await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 
@@ -492,6 +509,8 @@ async def show_chat_modes_callback_handle(update: Update, context: CallbackConte
     if await is_previous_message_not_answered_yet(update.callback_query, context): return
 
     user_id = update.callback_query.from_user.id
+    language = update.callback_query.from_user.language_code
+    language = language if language == "ru" else "en"
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
     query = update.callback_query
@@ -501,7 +520,7 @@ async def show_chat_modes_callback_handle(update: Update, context: CallbackConte
     if page_index < 0:
         return
 
-    text, reply_markup = get_chat_mode_menu(page_index)
+    text, reply_markup = get_chat_mode_menu(page_index, language)
     try:
         await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     except telegram.error.BadRequest as e:
@@ -512,6 +531,8 @@ async def show_chat_modes_callback_handle(update: Update, context: CallbackConte
 async def set_chat_mode_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update.callback_query, context, update.callback_query.from_user)
     user_id = update.callback_query.from_user.id
+    language = update.callback_query.from_user.language_code
+    language = language if language == "ru" else "en"
 
     query = update.callback_query
     await query.answer()
@@ -521,23 +542,25 @@ async def set_chat_mode_handle(update: Update, context: CallbackContext):
     db.set_user_attribute(user_id, "current_chat_mode", chat_mode)
     db.start_new_dialog(user_id)
 
+    welcome_message = "welcome_message_ru" if language == "ru" else "welcome_message"
     await context.bot.send_message(
         update.callback_query.message.chat.id,
-        f"{settings.chat_modes[chat_mode]['welcome_message']}",
+        f"{settings.chat_modes[chat_mode][welcome_message]}",
         parse_mode=ParseMode.HTML
     )
 
 
-def get_settings_menu(user_id: int):
+def get_settings_menu(user_id: int, language: str):
     current_model = db.get_user_attribute(user_id, "current_model")
-    text = settings.models["info"][current_model]["description"]
+    description_key = "description_ru" if language == "ru" else "description"
+    text = settings.models["info"][current_model][description_key]
 
     text += "\n\n"
     score_dict = settings.models["info"][current_model]["scores"]
     for score_key, score_value in score_dict.items():
         text += "🟢" * score_value + "⚪️" * (5 - score_value) + f" – {score_key}\n\n"
 
-    text += "\nSelect <b>model</b>:"
+    text += SELECT_MODEL[language]
 
     # buttons to choose models
     buttons = []
@@ -560,15 +583,19 @@ async def settings_handle(update: Update, context: CallbackContext):
         return
 
     user_id = update.message.from_user.id
+    language = update.message.from_user.language_code
+    language = language if language == "ru" else "en"
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
-    text, reply_markup = get_settings_menu(user_id)
+    text, reply_markup = get_settings_menu(user_id, language)
     await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
 
 
 async def set_settings_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update.callback_query, context, update.callback_query.from_user)
     user_id = update.callback_query.from_user.id
+    language = update.callback_query.from_user.language_code
+    language = language if language == "ru" else "en"
 
     query = update.callback_query
     await query.answer()
@@ -577,7 +604,7 @@ async def set_settings_handle(update: Update, context: CallbackContext):
     db.set_user_attribute(user_id, "current_model", model_key)
     db.start_new_dialog(user_id)
 
-    text, reply_markup = get_settings_menu(user_id)
+    text, reply_markup = get_settings_menu(user_id, language)
     try:
         await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=ParseMode.HTML)
     except telegram.error.BadRequest as e:
@@ -589,6 +616,8 @@ async def show_balance_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
 
     user_id = update.message.from_user.id
+    language = update.message.from_user.language_code
+    language = language if language == "ru" else "en"
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
 
     # # count total usage statistics
@@ -633,11 +662,14 @@ async def show_balance_handle(update: Update, context: CallbackContext):
     n_requests = db.get_user_attribute(user_id, "n_requests")
     if trial:
         invited_users = db.get_or_create_referral_link(user_id)
-        text = (f'You use the trial version!\n'
-                f'You spent {n_requests}/{settings.free_requests_limit} free requests\n\n'
-                f'To get the full version, you need to invite {len(invited_users)}/3 your friends')
+        text = TRIAL_VERSION[language].format(
+            number=n_requests,
+            limit=settings.free_requests_limit,
+            invited=len(invited_users),
+            required=settings.full_version_required_friends
+        )
     else:
-        text = f'You use the full version!\nYou spent {n_requests} requests'
+        text = FULL_VERSION[language].format(number=n_requests)
 
     await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
@@ -646,17 +678,21 @@ async def generate_link_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
 
     user_id = update.message.from_user.id
+    language = update.message.from_user.language_code
+    language = language if language == "ru" else "en"
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
     db.get_or_create_referral_link(user_id)
 
-    link = context.bot.link + f'?start={user_id}'
-    text = f'Your personal link to invite friends:\n{link}'
+    link = context.bot.link + f"?start={user_id}"
+    text = f"{REFERRAL_LINK[language]}{link}"
     await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
 
 async def edited_message_handle(update: Update, context: CallbackContext):
+    language = update.message.from_user.language_code
+    language = language if language == "ru" else "en"
     if update.edited_message.chat.type == "private":
-        text = "🥲 Unfortunately, message <b>editing</b> is not supported"
+        text = EDITING_NOT_SUPPORTED[language]
         await update.edited_message.reply_text(text, parse_mode=ParseMode.HTML)
 
 
@@ -685,16 +721,10 @@ async def error_handle(update: Update, context: CallbackContext) -> None:
     except:
         await context.bot.send_message(update.effective_chat.id, "Some error in error handler")
 
+
 async def post_init(application: Application):
-    await application.bot.set_my_commands([
-        BotCommand("/new", "Start new dialog"),
-        BotCommand("/mode", "Select chat mode"),
-        BotCommand("/retry", "Re-generate response for previous query"),
-        BotCommand("/balance", "Show balance"),
-        BotCommand("/link", "Generate referral link"),
-        BotCommand("/settings", "Show settings"),
-        BotCommand("/help", "Show help message"),
-    ])
+    await application.bot.set_my_commands(set_commands())
+
 
 def run_bot() -> None:
     application = (

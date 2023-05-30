@@ -5,6 +5,7 @@ info:
     type: chat_completion
     name: ChatGPT
     description: ChatGPT is that well-known model. It's <b>fast</b> and <b>cheap</b>. Ideal for everyday tasks. If there are some tasks it can't handle, try the <b>GPT-4</b>.
+    description_ru: ChatGPT - самая известная модель. Это <b>быстро</b> и <b>дешево</b>. Идеально подходит для повседневных задач. Если есть какие-то задачи, с которыми она не справляется, попробуйте <b>GPT-4</b>.
 
     price_per_1000_input_tokens: 0.002
     price_per_1000_output_tokens: 0.002
@@ -18,6 +19,7 @@ info:
     type: chat_completion
     name: GPT-4
     description: GPT-4 is the <b>smartest</b> and most advanced model in the world. But it is slower and not as cost-efficient as ChatGPT. Best choice for <b>complex</b> intellectual tasks.
+    description_ru: GPT-4 - самая умная и продвинутая модель в мире. Но она медленнее и не так экономична, как ChatGPT. Лучший выбор для <b>сложных</b> интеллектуальных задач.
 
     price_per_1000_input_tokens: 0.03
     price_per_1000_output_tokens: 0.06
@@ -31,6 +33,7 @@ info:
     type: completion
     name: GPT-3.5
     description: GPT-3.5 is a legacy model. Actually there is <b>no reason to use it</b>, because it is more expensive and slower than ChatGPT, but just about as smart.
+    description_ru: GPT-3.5 - устаревшая модель. На самом деле <b>нет причин использовать его</b>, потому что он дороже и медленнее, чем ChatGPT, но примерно такой же умный.
 
     price_per_1000_input_tokens: 0.02
     price_per_1000_output_tokens: 0.02
