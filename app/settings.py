@@ -24,6 +24,12 @@ mongodb_uri = f"mongodb://mongo:{config_env['MONGODB_PORT']}"
 free_requests_limit = config_yaml.get("free_requests_limit", 30)
 full_version_required_friends = config_yaml.get("full_version_required_friends", 3)
 
+# webhook
+webhook = config_yaml.get("webhook", False)
+webhook_host = config_yaml.get("webhook_host", "")
+webhook_prefix = config_yaml.get("webhook_prefix", "")
+webhook_port = config_yaml.get("webhook_port", 5000)
+
 # chat_modes
 with open(config_dir / "chat_modes.yml", 'r') as f:
     chat_modes = yaml.safe_load(f)

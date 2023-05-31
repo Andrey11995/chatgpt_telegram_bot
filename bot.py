@@ -767,7 +767,18 @@ def run_bot() -> None:
     application.add_error_handler(error_handle)
 
     # start the app
-    application.run_polling(drop_pending_updates=True)
+    if settings.webhook:
+        webhook_path = f"/{settings.webhook_prefix}/{settings.telegram_token}"
+        webhook_url = f"{settings.webhook_host}{webhook_path}"
+        application.run_webhook(
+            listen="0.0.0.0",
+            port=settings.webhook_port,
+            webhook_url=webhook_url,
+            url_path=webhook_path,
+            drop_pending_updates=True
+        )
+    else:
+        application.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":
