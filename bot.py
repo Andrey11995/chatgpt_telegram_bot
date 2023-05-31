@@ -220,7 +220,7 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
     n_requests = db.get_user_attribute(user_id, "n_requests")
     if trial and n_requests >= settings.free_requests_limit:
         link = await get_referral_link(context.bot.link, user_id)
-        text = LIMIT[language].format(limit=settings.free_requests_limit, link=link)
+        text = LIMIT[language].format(limit=settings.full_version_required_friends, link=link)
         await update.message.reply_text(text)
         return
 
