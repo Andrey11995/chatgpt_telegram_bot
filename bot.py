@@ -118,6 +118,11 @@ async def is_bot_mentioned(update: Update, context: CallbackContext):
         return False
 
 
+async def get_referral_link(bot_link, user_id):
+    db.get_or_create_referral_link(user_id)
+    return bot_link + f"?start={user_id}"
+
+
 async def start_handle(update: Update, context: CallbackContext):
     await register_user_if_not_exists(update, context, update.message.from_user)
     user_id = update.message.from_user.id
@@ -214,7 +219,9 @@ async def message_handle(update: Update, context: CallbackContext, message=None,
     trial = db.get_user_attribute(user_id, "trial")
     n_requests = db.get_user_attribute(user_id, "n_requests")
     if trial and n_requests >= settings.free_requests_limit:
-        await update.message.reply_text(LIMIT[language])
+        link = await get_referral_link(context.bot.link, user_id)
+        text = LIMIT[language].format(limit=settings.free_requests_limit, link=link)
+        await update.message.reply_text(text)
         return
 
     if chat_mode == "artist":
@@ -681,9 +688,7 @@ async def generate_link_handle(update: Update, context: CallbackContext):
     language = update.message.from_user.language_code
     language = language if language == "ru" else "en"
     db.set_user_attribute(user_id, "last_interaction", datetime.now())
-    db.get_or_create_referral_link(user_id)
-
-    link = context.bot.link + f"?start={user_id}"
+    link = await get_referral_link(context.bot.link, user_id)
     text = f"{REFERRAL_LINK[language]}{link}"
     await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 

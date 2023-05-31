@@ -100,8 +100,14 @@ NO_RETRY = {
 }
 
 LIMIT = {
-    "ru": "Достигнут лимит сообщений",
-    "en": "Message limit reached"
+    "ru": "Ой, похоже, что достигнут лимит сообщений! 😮\n\nНе волнуйтесь, мы можем снять это ограничение. "
+          "Все, что вам нужно сделать, это поделиться следующей ссылкой со своими друзьями. "
+          "Если {limit} человек присоединятся по вашей ссылке, вы сможете наслаждаться всеми возможностями "
+          "без ограничений! 🚀🎉\n\nНе забудьте отправить эту ссылку ваши друзьям 😄👫👭👬\n\n{link}",
+    "en": "Oh, it looks like the message limit has been reached! 😮\n\nDon't worry, we can remove this restriction. "
+          "All you have to do is share the following link with your friends. If {limit} people join your link, "
+          "you will be able to enjoy all the possibilities without restrictions! 🚀🎉\n\n"
+          "Don't forget to send this link to your friends 😄👫👭👬\n\n{link}"
 }
 
 DIALOG_TIMEOUT = {
